@@ -27,9 +27,8 @@ import (
 	"io"
 	"math/big"
 	"net"
-	"time"
-
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	bcrypt_lib "golang.org/x/crypto/bcrypt"
@@ -341,7 +340,7 @@ func generateCertificateAuthorityWithKeyInternal(
 ) (certificate, error) {
 	ca := certificate{}
 
-	template, err := getBaseCertTemplate(cn, nil, nil, daysValid)
+	template, err := getBaseCertTemplate(cn, nil, nil, nil, daysValid)
 	if err != nil {
 		return ca, err
 	}
@@ -358,6 +357,7 @@ func generateCertificateAuthorityWithKeyInternal(
 
 func generateSelfSignedCertificate(
 	cn string,
+	orgs []interface{},
 	ips []interface{},
 	alternateDNS []interface{},
 	daysValid int,
@@ -366,11 +366,12 @@ func generateSelfSignedCertificate(
 	if err != nil {
 		return certificate{}, fmt.Errorf("error generating rsa key: %s", err)
 	}
-	return generateSelfSignedCertificateWithKeyInternal(cn, ips, alternateDNS, daysValid, priv)
+	return generateSelfSignedCertificateWithKeyInternal(cn, orgs, ips, alternateDNS, daysValid, priv)
 }
 
 func generateSelfSignedCertificateWithPEMKey(
 	cn string,
+	orgs []interface{},
 	ips []interface{},
 	alternateDNS []interface{},
 	daysValid int,
@@ -380,11 +381,12 @@ func generateSelfSignedCertificateWithPEMKey(
 	if err != nil {
 		return certificate{}, fmt.Errorf("parsing private key: %s", err)
 	}
-	return generateSelfSignedCertificateWithKeyInternal(cn, ips, alternateDNS, daysValid, priv)
+	return generateSelfSignedCertificateWithKeyInternal(cn, orgs, ips, alternateDNS, daysValid, priv)
 }
 
 func generateSelfSignedCertificateWithKeyInternal(
 	cn string,
+	orgs []interface{},
 	ips []interface{},
 	alternateDNS []interface{},
 	daysValid int,
@@ -392,7 +394,7 @@ func generateSelfSignedCertificateWithKeyInternal(
 ) (certificate, error) {
 	cert := certificate{}
 
-	template, err := getBaseCertTemplate(cn, ips, alternateDNS, daysValid)
+	template, err := getBaseCertTemplate(cn, orgs, ips, alternateDNS, daysValid)
 	if err != nil {
 		return cert, err
 	}
@@ -404,6 +406,7 @@ func generateSelfSignedCertificateWithKeyInternal(
 
 func generateSignedCertificate(
 	cn string,
+	orgs []interface{},
 	ips []interface{},
 	alternateDNS []interface{},
 	daysValid int,
@@ -413,11 +416,12 @@ func generateSignedCertificate(
 	if err != nil {
 		return certificate{}, fmt.Errorf("error generating rsa key: %s", err)
 	}
-	return generateSignedCertificateWithKeyInternal(cn, ips, alternateDNS, daysValid, ca, priv)
+	return generateSignedCertificateWithKeyInternal(cn, orgs, ips, alternateDNS, daysValid, ca, priv)
 }
 
 func generateSignedCertificateWithPEMKey(
 	cn string,
+	orgs []interface{},
 	ips []interface{},
 	alternateDNS []interface{},
 	daysValid int,
@@ -428,11 +432,12 @@ func generateSignedCertificateWithPEMKey(
 	if err != nil {
 		return certificate{}, fmt.Errorf("parsing private key: %s", err)
 	}
-	return generateSignedCertificateWithKeyInternal(cn, ips, alternateDNS, daysValid, ca, priv)
+	return generateSignedCertificateWithKeyInternal(cn, orgs, ips, alternateDNS, daysValid, ca, priv)
 }
 
 func generateSignedCertificateWithKeyInternal(
 	cn string,
+	orgs []interface{},
 	ips []interface{},
 	alternateDNS []interface{},
 	daysValid int,
@@ -460,7 +465,7 @@ func generateSignedCertificateWithKeyInternal(
 		)
 	}
 
-	template, err := getBaseCertTemplate(cn, ips, alternateDNS, daysValid)
+	template, err := getBaseCertTemplate(cn, orgs, ips, alternateDNS, daysValid)
 	if err != nil {
 		return cert, err
 	}
@@ -517,6 +522,7 @@ func getCertAndKey(
 
 func getBaseCertTemplate(
 	cn string,
+	orgs []interface{},
 	ips []interface{},
 	alternateDNS []interface{},
 	daysValid int,
@@ -529,6 +535,10 @@ func getBaseCertTemplate(
 	if err != nil {
 		return nil, err
 	}
+	organizations, err := getOrganizations(orgs)
+	if err != nil {
+		return nil, err
+	}
 	serialNumberUpperBound := new(big.Int).Lsh(big.NewInt(1), 128)
 	serialNumber, err := rand.Int(rand.Reader, serialNumberUpperBound)
 	if err != nil {
@@ -537,7 +547,8 @@ func getBaseCertTemplate(
 	return &x509.Certificate{
 		SerialNumber: serialNumber,
 		Subject: pkix.Name{
-			CommonName: cn,
+			CommonName:   cn,
+			Organization: organizations,
 		},
 		IPAddresses: ipAddresses,
 		DNSNames:    dnsNames,
@@ -550,6 +561,23 @@ func getBaseCertTemplate(
 		},
 		BasicConstraintsValid: true,
 	}, nil
+}
+
+func getOrganizations(orgs []interface{}) ([]string, error) {
+	if len(orgs) == 0 {
+		return nil, nil
+	}
+	var orgStr string
+	var ok bool
+	orgStrs := make([]string, len(orgs))
+	for i, org := range orgs {
+		orgStr, ok = org.(string)
+		if !ok {
+			return nil, fmt.Errorf("error parsing organization: %v is not a string", org)
+		}
+		orgStrs[i] = orgStr
+	}
+	return orgStrs, nil
 }
 
 func getNetIPs(ips []interface{}) ([]net.IP, error) {

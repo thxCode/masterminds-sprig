@@ -313,7 +313,7 @@ func testGenSelfSignedCert(t *testing.T, keyAlgo *string) {
 	}
 
 	tpl := fmt.Sprintf(
-		`{{- $cert := %s "%s" (list "%s" "%s") (list "%s" "%s") 365 }}
+		`{{- $cert := %s "%s" (list) (list "%s" "%s") (list "%s" "%s") 365 }}
 {{ $cert.Cert }}`,
 		genSelfSignedCertExpr,
 		cn,
@@ -336,6 +336,7 @@ func testGenSelfSignedCert(t *testing.T, keyAlgo *string) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, cn, cert.Subject.CommonName)
+	assert.Equal(t, []string(nil), cert.Subject.Organization)
 	assert.Equal(t, 1, cert.SerialNumber.Sign())
 	assert.Equal(t, 2, len(cert.IPAddresses))
 	assert.Equal(t, ip1, cert.IPAddresses[0].String())
@@ -362,6 +363,8 @@ func TestGenSignedCertWithKey(t *testing.T) {
 func testGenSignedCert(t *testing.T, caKeyAlgo, certKeyAlgo *string) {
 	const (
 		cn   = "foo.com"
+		org1 = "org1"
+		org2 = "org2"
 		ip1  = "10.0.0.1"
 		ip2  = "10.0.0.2"
 		dns1 = "bar.com"
@@ -382,12 +385,14 @@ func testGenSignedCert(t *testing.T, caKeyAlgo, certKeyAlgo *string) {
 
 	tpl := fmt.Sprintf(
 		`{{- $ca := %s "foo" 365 }}
-{{- $cert := %s "%s" (list "%s" "%s") (list "%s" "%s") 365 $ca }}
+{{- $cert := %s "%s" (list "%s" "%s") (list "%s" "%s") (list "%s" "%s") 365 $ca }}
 {{ $cert.Cert }}
 `,
 		genCAExpr,
 		genSignedCertExpr,
 		cn,
+		org1,
+		org2,
 		ip1,
 		ip2,
 		dns1,
@@ -407,6 +412,9 @@ func testGenSignedCert(t *testing.T, caKeyAlgo, certKeyAlgo *string) {
 	assert.Nil(t, err)
 
 	assert.Equal(t, cn, cert.Subject.CommonName)
+	assert.Equal(t, 2, len(cert.Subject.Organization))
+	assert.Equal(t, org1, cert.Subject.Organization[0])
+	assert.Equal(t, org2, cert.Subject.Organization[1])
 	assert.Equal(t, 1, cert.SerialNumber.Sign())
 	assert.Equal(t, 2, len(cert.IPAddresses))
 	assert.Equal(t, ip1, cert.IPAddresses[0].String())
