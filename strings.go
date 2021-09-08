@@ -94,7 +94,7 @@ func squote(str ...interface{}) string {
 	out := make([]string, 0, len(str))
 	for _, s := range str {
 		if s != nil {
-			out = append(out, fmt.Sprintf("'%v'", s))
+			out = append(out, fmt.Sprintf("'%s'", strval(s)))
 		}
 	}
 	return strings.Join(out, " ")
@@ -175,6 +175,8 @@ func strval(v interface{}) string {
 	switch v := v.(type) {
 	case string:
 		return v
+	case *string:
+		return *v
 	case []byte:
 		return string(v)
 	case error:
